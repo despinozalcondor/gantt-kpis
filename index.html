@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gantt KPIs por participante · Informática</title>
+<style>
+  :root {
+    --azul: #0b3c7d;
+    --rojo: #c8102e;
+    --naranja: #f39c12;
+    --gris: #6b7280;
+    --borde: #e5e7eb;
+    --fondo: #f5f7fb;
+    --label: 250px;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Segoe UI", Roboto, Arial, sans-serif; background: var(--fondo); color: #1f2937; }
+
+  header { background: #fff; border-bottom: 4px solid var(--azul); padding: 16px 28px; display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 12px; }
+  header h1 { margin: 0; font-size: 22px; color: var(--azul); }
+  header p { margin: 4px 0 0; color: var(--gris); font-size: 13px; }
+  .meta { font-size: 12px; color: var(--gris); text-align: right; line-height: 1.6; }
+
+  main { padding: 20px 28px; max-width: 1500px; margin: auto; }
+  .card { background: #fff; border: 1px solid var(--borde); border-radius: 10px; padding: 16px; margin-bottom: 18px; }
+  .card h2 { margin: 0 0 12px; font-size: 16px; color: var(--azul); }
+
+  .toolbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .toolbar .sep { width: 1px; height: 26px; background: var(--borde); margin: 0 6px; }
+  .toolbar span.titulo { font-size: 12px; color: var(--gris); text-transform: uppercase; letter-spacing: .5px; }
+  .btn { border: 1px solid var(--borde); background: #fff; padding: 7px 14px; border-radius: 20px; cursor: pointer; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; }
+  .btn:hover { border-color: var(--azul); }
+  .btn.activo { background: var(--azul); color: #fff; border-color: var(--azul); }
+  .punto { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+
+  /* Tarjetas de resumen por participante */
+  .tarjetas { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+  .tarjeta { background: #fff; border: 1px solid var(--borde); border-top: 5px solid; border-radius: 10px; padding: 14px; cursor: pointer; transition: box-shadow .15s; }
+  .tarjeta:hover { box-shadow: 0 4px 14px rgba(0,0,0,.08); }
+  .tarjeta.activa { box-shadow: 0 0 0 2px var(--azul); }
+  .tarjeta h3 { margin: 0 0 8px; font-size: 15px; }
+  .tarjeta .dato { display: flex; justify-content: space-between; font-size: 13px; padding: 3px 0; border-bottom: 1px dashed #eef0f4; }
+  .tarjeta .dato b { font-weight: 600; }
+  .tarjeta .areas { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 4px; }
+  .tag { font-size: 11px; padding: 2px 8px; border-radius: 10px; background: #eef2f8; }
+
+  /* Gantt */
+  .gantt-wrap { overflow-x: auto; }
+  .gantt { position: relative; min-width: 1000px; }
+  .fondo-dias { position: absolute; top: 0; bottom: 0; left: var(--label); right: 0; display: grid; pointer-events: none; }
+  .fondo-dias div { border-left: 1px solid #eef0f4; }
+  .fondo-dias .finde { background: #f1f3f6; }
+  .fondo-dias .hoy { background: rgba(200,16,46,.08); border-left: 2px dashed var(--rojo); }
+
+  .fila { position: relative; display: grid; grid-template-columns: var(--label) 1fr; min-height: 38px; border-bottom: 1px solid #f1f2f5; }
+  .fila:hover { background: rgba(11,60,125,.03); }
+  .fila .etq { padding: 6px 10px; font-size: 13px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .fila .etq small { color: var(--gris); }
+  .pista { position: relative; }
+  .encabezado { border-bottom: 2px solid var(--borde); }
+  .encabezado .pista { display: grid; }
+  .encabezado .pista div { text-align: center; font-size: 11px; color: var(--gris); padding: 6px 0; line-height: 1.3; }
+  .encabezado .pista div b { display: block; color: #374151; font-size: 12px; }
+  .encabezado .pista div.hoy b { color: var(--rojo); }
+  .grupo { background: rgba(11,60,125,.06); min-height: 34px; }
+  .grupo .etq { font-weight: 600; }
+
+  .barra { position: absolute; top: 10px; height: 18px; border-radius: 3px; opacity: .92; }
+  .hito-it { position: absolute; top: 12px; width: 14px; height: 14px; margin-left: -7px; border-radius: 50%; background: var(--naranja); border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.15); }
+  .hito-fin { position: absolute; top: 12px; width: 14px; height: 14px; margin-left: -7px; background: var(--rojo); transform: rotate(45deg); }
+  .fecha-fin { position: absolute; top: 11px; margin-left: 12px; font-size: 11px; white-space: nowrap; color: #374151; }
+  .alerta { color: #b45309; cursor: help; }
+
+  .chip { width: 22px; height: 22px; border-radius: 50%; color: #fff; font-size: 10px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
+
+  .leyenda { display: flex; flex-wrap: wrap; gap: 18px; font-size: 12px; color: var(--gris); margin-top: 12px; align-items: center; }
+  .leyenda span { display: inline-flex; align-items: center; gap: 6px; }
+  .ley-barra { width: 26px; height: 10px; background: #0e5c6b; border-radius: 2px; }
+  .ley-it { width: 11px; height: 11px; border-radius: 50%; background: var(--naranja); }
+  .ley-fin { width: 10px; height: 10px; background: var(--rojo); transform: rotate(45deg); }
+  .ley-finde { width: 14px; height: 14px; background: #f1f3f6; border: 1px solid var(--borde); }
+  .ley-hoy { width: 14px; height: 14px; background: rgba(200,16,46,.08); border-left: 2px dashed var(--rojo); }
+
+  /* Carga diaria */
+  table { border-collapse: collapse; width: 100%; font-size: 12px; }
+  .carga { table-layout: fixed; min-width: 1000px; }
+  .carga th, .carga td { border: 1px solid #eef0f4; text-align: center; padding: 4px 2px; }
+  .carga th:first-child, .carga td:first-child { width: var(--label); text-align: left; padding-left: 10px; }
+  .carga th { color: var(--gris); font-weight: 500; }
+  .carga th.finde, .carga td.finde { outline: 1px solid #e5e7eb; }
+  .carga td .num { font-size: 14px; font-weight: 700; }
+  .carga td .hitos { font-size: 10px; color: #374151; }
+  .carga tr.atenuada { opacity: .3; }
+
+  /* Tabla de detalle */
+  .detalle th, .detalle td { border-bottom: 1px solid #eef0f4; padding: 8px; text-align: left; }
+  .detalle th { background: #f8fafc; color: var(--gris); font-weight: 600; }
+  .detalle td.finde { color: #b45309; font-weight: 600; }
+
+  .alertas { margin: 0; padding-left: 18px; font-size: 13px; line-height: 1.8; }
+
+  @media print {
+    body { background: #fff; }
+    .toolbar { display: none; }
+    .card { break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Gantt de entrega final de proyectos KPIs · por participante</h1>
+    <p>Fecha final estimada = Inicio + (duración a Entrega IT × 1.5)</p>
+  </div>
+  <div class="meta" id="meta"></div>
+</header>
+
+<main>
+  <div class="card">
+    <div class="toolbar" id="toolbar"></div>
+  </div>
+
+  <div class="tarjetas" id="tarjetas"></div>
+  <div style="height:18px"></div>
+
+  <div class="card">
+    <h2 id="tituloGantt">Cronograma</h2>
+    <div class="gantt-wrap"><div class="gantt" id="gantt"></div></div>
+    <div class="leyenda" id="leyenda"></div>
+  </div>
+
+  <div class="card">
+    <h2>Carga diaria por participante <small style="color:var(--gris);font-weight:400">(proyectos activos por día · ● entregas IT · ◆ entregas finales)</small></h2>
+    <div class="gantt-wrap"><table class="carga" id="carga"></table></div>
+  </div>
+
+  <div class="card">
+    <h2>Alertas del cronograma</h2>
+    <ul class="alertas" id="alertas"></ul>
+  </div>
+
+  <div class="card">
+    <h2>Detalle de proyectos</h2>
+    <div class="gantt-wrap"><table class="detalle" id="detalle"></table></div>
+  </div>
+</main>
+
+<script>
+  // Participantes en el orden solicitado; el id se usa para asignarlos a cada proyecto.
+  const PARTICIPANTES = [
+    { id: 'DE', nombre: 'David Espinoza',    color: '#1f6feb' },
+    { id: 'JC', nombre: 'Javier De La Cruz', color: '#2e9e5b' },
+    { id: 'EJ', nombre: 'Esaú Jimenez',      color: '#8e44ad' },
+    { id: 'IC', nombre: 'Iván Cortez',       color: '#e67e22' },
+  ];
+
+  // Proyectos tomados del Gantt original. Basta con editar este arreglo para reasignar o mover fechas.
+  const PROYECTOS = [
+    { area: 'Ventas',         inicio: '2026-10-26', it: '2026-10-29', final: '2026-10-31', equipo: ['IC', 'JC'] },
+    { area: 'Producción',     inicio: '2026-10-27', it: '2026-10-29', final: '2026-10-30', equipo: ['IC'] },
+    { area: 'S&OP',           inicio: '2026-10-28', it: '2026-11-02', final: '2026-11-05', equipo: ['IC'] },
+    { area: 'Logística',      inicio: '2026-10-28', it: '2026-11-04', final: '2026-11-08', equipo: ['DE', 'EJ'] },
+    { area: 'Mantenimiento',  inicio: '2026-10-27', it: '2026-11-02', final: '2026-11-05', equipo: ['IC'] },
+    { area: 'Calidad',        inicio: '2026-10-26', it: '2026-10-30', final: '2026-11-01', equipo: ['EJ'] },
+    { area: 'Procesos',       inicio: '2026-10-28', it: '2026-11-04', final: '2026-11-08', equipo: ['IC', 'EJ'] },
+    { area: 'Auditoría',      inicio: '2026-10-27', it: '2026-11-05', final: '2026-11-10', equipo: ['DE', 'EJ'] },
+    { area: 'RRHH',           inicio: '2026-10-29', it: '2026-11-06', final: '2026-11-10', equipo: ['JC'] },
+    { area: 'Administración', inicio: '2026-10-29', it: '2026-11-06', final: '2026-11-10', equipo: ['DE', 'JC'] },
+    { area: 'Informática',    inicio: '2026-10-30', it: '2026-11-06', final: '2026-11-10', equipo: ['EJ'] },
+    { area: 'Finanzas',       inicio: '2026-10-30', it: '2026-11-06', final: '2026-11-10', equipo: ['JC'] },
+  ];
+
+  const DIAS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+  const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+  const MS_DIA = 86400000;
+
+  // Las fechas se construyen en hora local para evitar desfases por zona horaria.
+  function aFecha(txt) { const [a, m, d] = txt.split('-').map(Number); return new Date(a, m - 1, d); }
+  function sumarDias(f, n) { return new Date(f.getFullYear(), f.getMonth(), f.getDate() + n); }
+  function dd(f) { return String(f.getDate()).padStart(2, '0'); }
+  function corto(f) { return dd(f) + ' ' + MESES[f.getMonth()]; }
+  function largo(f) { return DIAS[f.getDay()] + ' ' + corto(f); }
+  function esFinde(f) { return f.getDay() === 0 || f.getDay() === 6; }
+
+  PROYECTOS.forEach(p => { p.fInicio = aFecha(p.inicio); p.fIt = aFecha(p.it); p.fFinal = aFecha(p.final); });
+
+  // El rango agrega un día extra al final para que la etiqueta de la última entrega sea visible.
+  const INICIO = new Date(Math.min(...PROYECTOS.map(p => p.fInicio)));
+  const ULTIMO_CIERRE = new Date(Math.max(...PROYECTOS.map(p => p.fFinal)));
+  const PRIMER_CIERRE = new Date(Math.min(...PROYECTOS.map(p => p.fFinal)));
+  const FIN = sumarDias(ULTIMO_CIERRE, 1);
+
+  function indice(f) { return Math.round((f - INICIO) / MS_DIA); }
+  const N = indice(FIN) + 1;
+  const LISTA_DIAS = Array.from({ length: N }, (_, i) => sumarDias(INICIO, i));
+
+  const hoyReal = new Date();
+  const HOY = new Date(hoyReal.getFullYear(), hoyReal.getMonth(), hoyReal.getDate());
+  function esHoy(f) { return indice(f) === indice(HOY); }
+
+  // Los hitos se ubican al centro de la columna del día, igual que en el Gantt original.
+  function pos(f) { return ((indice(f) + 0.5) / N * 100) + '%'; }
+  function ancho(a, b) { return ((indice(b) - indice(a)) / N * 100) + '%'; }
+
+  const porId = id => PARTICIPANTES.find(u => u.id === id);
+  const nombres = equipo => equipo.map(id => porId(id).nombre).join(', ');
+  const iniciales = nombre => nombre.split(' ').filter(x => x.length > 2 || x === nombre.split(' ')[0]).map(x => x[0]).slice(0, 2).join('');
+
+  function hexAlfa(hex, a) {
+    const n = parseInt(hex.slice(1), 16);
+    return `rgba(${n >> 16}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
+  }
+
+  // Los proyectos compartidos muestran una barra dividida con el color de cada responsable.
+  function colorEquipo(equipo) {
+    if (equipo.length === 1) return porId(equipo[0]).color;
+    const paso = 100 / equipo.length;
+    const tramos = equipo.map((id, i) => `${porId(id).color} ${i * paso}% ${(i + 1) * paso}%`);
+    return `linear-gradient(to bottom, ${tramos.join(', ')})`;
+  }
+
+  function chips(equipo) {
+    return equipo.map(id => {
+      const u = porId(id);
+      return `<span class="chip" style="background:${u.color}" title="${u.nombre}">${iniciales(u.nombre)}</span>`;
+    }).join('');
+  }
+
+  function carga(pid, f) {
+    return PROYECTOS.filter(p => p.equipo.includes(pid) && p.fInicio <= f && f <= p.fFinal).length;
+  }
+
+  function hitos(pid, f) {
+    const lista = [];
+    PROYECTOS.filter(p => p.equipo.includes(pid)).forEach(p => {
+      if (indice(p.fIt) === indice(f)) lista.push({ tipo: 'IT', area: p.area });
+      if (indice(p.fFinal) === indice(f)) lista.push({ tipo: 'Final', area: p.area });
+    });
+    return lista;
+  }
+
+  function resumen(pid) {
+    const proys = PROYECTOS.filter(p => p.equipo.includes(pid));
+    let pico = 0, fechaPico = null;
+    LISTA_DIAS.forEach(f => { const c = carga(pid, f); if (c > pico) { pico = c; fechaPico = f; } });
+    return {
+      proys,
+      pico,
+      fechaPico,
+      compartidos: proys.filter(p => p.equipo.length > 1).length,
+      ultimo: new Date(Math.max(...proys.map(p => p.fFinal))),
+    };
+  }
+
+  const estado = { filtro: 'todos', vista: 'participante' };
+
+  function renderMeta() {
+    document.getElementById('meta').innerHTML =
+      `Primer cierre: <b>${largo(PRIMER_CIERRE)}</b> &nbsp;|&nbsp; Último cierre: <b>${largo(ULTIMO_CIERRE)}</b><br>` +
+      `Proyectos: <b>${PROYECTOS.length}</b> &nbsp;|&nbsp; Participantes: <b>${PARTICIPANTES.length}</b> &nbsp;|&nbsp; Hoy: <b>${largo(HOY)}</b>`;
+  }
+
+  function renderToolbar() {
+    const botonesVista = [['participante', 'Por participante'], ['area', 'Por área']]
+      .map(([v, t]) => `<button class="btn ${estado.vista === v ? 'activo' : ''}" onclick="cambiarVista('${v}')">${t}</button>`).join('');
+    const botonesFiltro = [`<button class="btn ${estado.filtro === 'todos' ? 'activo' : ''}" onclick="cambiarFiltro('todos')">Todos</button>`]
+      .concat(PARTICIPANTES.map(u =>
+        `<button class="btn ${estado.filtro === u.id ? 'activo' : ''}" onclick="cambiarFiltro('${u.id}')"><span class="punto" style="background:${u.color}"></span>${u.nombre}</button>`
+      )).join('');
+    document.getElementById('toolbar').innerHTML =
+      `<span class="titulo">Vista</span>${botonesVista}<span class="sep"></span><span class="titulo">Participante</span>${botonesFiltro}`;
+  }
+
+  function renderTarjetas() {
+    document.getElementById('tarjetas').innerHTML = PARTICIPANTES.map(u => {
+      const r = resumen(u.id);
+      return `<div class="tarjeta ${estado.filtro === u.id ? 'activa' : ''}" style="border-top-color:${u.color}" onclick="cambiarFiltro('${u.id}')">
+        <h3><span class="chip" style="background:${u.color}">${iniciales(u.nombre)}</span> ${u.nombre}</h3>
+        <div class="dato"><span>Proyectos asignados</span><b>${r.proys.length}</b></div>
+        <div class="dato"><span>Compartidos</span><b>${r.compartidos}</b></div>
+        <div class="dato"><span>Máx. proyectos en paralelo</span><b>${r.pico} (desde ${corto(r.fechaPico)})</b></div>
+        <div class="dato"><span>Último cierre</span><b>${largo(r.ultimo)}</b></div>
+        <div class="areas">${r.proys.map(p => `<span class="tag">${p.area}</span>`).join('')}</div>
+      </div>`;
+    }).join('');
+  }
+
+  function filaProyecto(p, color, nota) {
+    const titulo = `${p.area}\nResponsables: ${nombres(p.equipo)}\nInicio: ${largo(p.fInicio)}\nEntrega IT: ${largo(p.fIt)}\nEntrega final: ${largo(p.fFinal)}`;
+    const alerta = (esFinde(p.fIt) || esFinde(p.fFinal)) ? '<span class="alerta" title="Tiene una entrega en fin de semana">⚠</span>' : '';
+    return `<div class="fila" title="${titulo}">
+      <div class="etq"><strong>${p.area}</strong>${alerta}${nota !== undefined ? nota : chips(p.equipo)}</div>
+      <div class="pista">
+        <div class="barra" style="left:${pos(p.fInicio)};width:${ancho(p.fInicio, p.fFinal)};background:${color || colorEquipo(p.equipo)}"></div>
+        <div class="hito-it" style="left:${pos(p.fIt)}" title="Entrega IT: ${largo(p.fIt)}"></div>
+        <div class="hito-fin" style="left:${pos(p.fFinal)}" title="Entrega final: ${largo(p.fFinal)}"></div>
+        <div class="fecha-fin" style="left:${pos(p.fFinal)}">${corto(p.fFinal)}</div>
+      </div>
+    </div>`;
+  }
+
+  function renderGantt() {
+    const columnas = `repeat(${N}, 1fr)`;
+    const fondo = LISTA_DIAS.map(f => `<div class="${esFinde(f) ? 'finde' : ''} ${esHoy(f) ? 'hoy' : ''}"></div>`).join('');
+    const cabecera = LISTA_DIAS.map(f => `<div class="${esHoy(f) ? 'hoy' : ''}">${DIAS[f.getDay()]}<b>${corto(f)}</b></div>`).join('');
+
+    let filas = '';
+    if (estado.vista === 'area') {
+      PROYECTOS.filter(p => estado.filtro === 'todos' || p.equipo.includes(estado.filtro))
+        .forEach(p => { filas += filaProyecto(p); });
+    } else {
+      PARTICIPANTES.filter(u => estado.filtro === 'todos' || u.id === estado.filtro).forEach(u => {
+        const r = resumen(u.id);
+        filas += `<div class="fila grupo"><div class="etq"><span class="punto" style="background:${u.color}"></span>${u.nombre}
+          <small>· ${r.proys.length} proyectos</small></div><div class="pista"></div></div>`;
+        r.proys.forEach(p => {
+          const otros = p.equipo.filter(id => id !== u.id);
+          const nota = otros.length ? `<small>con ${otros.map(id => porId(id).nombre.split(' ')[0]).join(', ')}</small>` : '';
+          filas += filaProyecto(p, u.color, nota);
+        });
+      });
+    }
+
+    document.getElementById('tituloGantt').textContent =
+      'Cronograma ' + (estado.vista === 'area' ? 'por área' : 'por participante') +
+      (estado.filtro === 'todos' ? '' : ' · ' + porId(estado.filtro).nombre);
+
+    document.getElementById('gantt').innerHTML =
+      `<div class="fondo-dias" style="grid-template-columns:${columnas}">${fondo}</div>
+       <div class="fila encabezado"><div class="etq"><b>${estado.vista === 'area' ? 'Área' : 'Participante / Área'}</b></div>
+       <div class="pista" style="grid-template-columns:${columnas}">${cabecera}</div></div>${filas}`;
+
+    document.getElementById('leyenda').innerHTML =
+      `<span><i class="ley-barra"></i>Ventana estimada hasta Entrega Final</span>
+       <span><i class="ley-it"></i>Entrega IT</span>
+       <span><i class="ley-fin"></i>Entrega Final (1.5x)</span>
+       <span><i class="ley-finde"></i>Fin de semana</span>
+       <span><i class="ley-hoy"></i>Hoy</span>
+       <span>⚠ Entrega en fin de semana</span>` +
+      PARTICIPANTES.map(u => `<span><span class="punto" style="background:${u.color}"></span>${u.nombre}</span>`).join('');
+  }
+
+  function renderCarga() {
+    const maximo = Math.max(...PARTICIPANTES.flatMap(u => LISTA_DIAS.map(f => carga(u.id, f))));
+    const cabecera = '<tr><th>Participante</th>' +
+      LISTA_DIAS.map(f => `<th class="${esFinde(f) ? 'finde' : ''}" style="${esFinde(f) ? 'background:#f1f3f6' : ''}">${DIAS[f.getDay()]}<br>${dd(f)}</th>`).join('') + '</tr>';
+
+    const filas = PARTICIPANTES.map(u => {
+      const celdas = LISTA_DIAS.map(f => {
+        const c = carga(u.id, f);
+        const h = hitos(u.id, f);
+        const nIt = h.filter(x => x.tipo === 'IT').length;
+        const nFin = h.filter(x => x.tipo === 'Final').length;
+        const marcas = (nIt ? `●${nIt} ` : '') + (nFin ? `◆${nFin}` : '');
+        const titulo = h.length ? h.map(x => `${x.tipo} ${x.area}`).join('\n') : '';
+        return `<td class="${esFinde(f) ? 'finde' : ''}" style="background:${c ? hexAlfa(u.color, 0.12 + 0.75 * c / maximo) : ''}" title="${titulo}">
+          <div class="num">${c || ''}</div><div class="hitos">${marcas}</div></td>`;
+      }).join('');
+      const atenuar = estado.filtro !== 'todos' && estado.filtro !== u.id;
+      return `<tr class="${atenuar ? 'atenuada' : ''}"><td><span class="punto" style="background:${u.color}"></span> ${u.nombre}</td>${celdas}</tr>`;
+    }).join('');
+
+    document.getElementById('carga').innerHTML = cabecera + filas;
+  }
+
+  function renderAlertas() {
+    const items = [];
+    PROYECTOS.forEach(p => {
+      if (esFinde(p.fIt)) items.push(`<b>${p.area}</b>: la entrega IT cae en ${largo(p.fIt)} (fin de semana).`);
+      if (esFinde(p.fFinal)) items.push(`<b>${p.area}</b>: la entrega final cae en ${largo(p.fFinal)} (fin de semana).`);
+    });
+    PARTICIPANTES.forEach(u => {
+      const r = resumen(u.id);
+      if (r.pico >= 4) items.push(`<b>${u.nombre}</b>: llega a ${r.pico} proyectos en paralelo a partir del ${largo(r.fechaPico)}.`);
+      LISTA_DIAS.forEach(f => {
+        const h = hitos(u.id, f);
+        if (h.length >= 3) items.push(`<b>${u.nombre}</b>: ${h.length} entregas el ${largo(f)} (${h.map(x => x.tipo + ' ' + x.area).join(', ')}).`);
+      });
+    });
+    document.getElementById('alertas').innerHTML = items.length ? items.map(x => `<li>${x}</li>`).join('') : '<li>Sin alertas.</li>';
+  }
+
+  function renderDetalle() {
+    const celdaFecha = f => `<td class="${esFinde(f) ? 'finde' : ''}">${largo(f)}</td>`;
+    const filas = PROYECTOS.filter(p => estado.filtro === 'todos' || p.equipo.includes(estado.filtro)).map(p => `
+      <tr>
+        <td><b>${p.area}</b></td>
+        <td>${chips(p.equipo)} ${nombres(p.equipo)}</td>
+        ${celdaFecha(p.fInicio)}${celdaFecha(p.fIt)}${celdaFecha(p.fFinal)}
+        <td>${indice(p.fIt) - indice(p.fInicio)}</td>
+        <td>${indice(p.fFinal) - indice(p.fIt)}</td>
+        <td>${indice(p.fFinal) - indice(p.fInicio)}</td>
+      </tr>`).join('');
+    document.getElementById('detalle').innerHTML =
+      `<tr><th>Área</th><th>Responsables</th><th>Inicio</th><th>Entrega IT</th><th>Entrega final</th>
+       <th>Días a IT</th><th>Días IT → Final</th><th>Días totales</th></tr>${filas}`;
+  }
+
+  function cambiarFiltro(f) { estado.filtro = (estado.filtro === f && f !== 'todos') ? 'todos' : f; render(); }
+  function cambiarVista(v) { estado.vista = v; render(); }
+
+  function render() {
+    renderMeta();
+    renderToolbar();
+    renderTarjetas();
+    renderGantt();
+    renderCarga();
+    renderAlertas();
+    renderDetalle();
+  }
+
+  render();
+</script>
+</body>
+</html>
