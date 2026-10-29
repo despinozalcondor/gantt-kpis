@@ -1,1 +1,1 @@
-# gantt-kpis
+# Gantt KPIs por participante
